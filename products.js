@@ -323,3 +323,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   await window.PRODUCTS_READY;
   setupCatalog();
 });
+
+setInterval(async () => {
+  if (document.hidden) return;
+
+  await loadProducts();
+  renderProducts();
+
+  if (typeof renderCart === "function") {
+    renderCart();
+  }
+}, 30000);
