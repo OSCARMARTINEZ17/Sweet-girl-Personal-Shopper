@@ -12,8 +12,7 @@
 */
 
 const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vR9S3kboBuiC1c3iwKAU8qm54v-JXU7xGwxNiGrKnPoz5et9m6PzcdkhDXUGY3oRcJi_rDziF-GvPnQ/pub?output=csv";
-
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vR9S3kboBuiC1c3iwKAU8qm54v-JXU7xGwxNiGrKnPoz5et9m6PzcdkhDXUGY3oRcJi_rDziF-GvPnQ/pub?gid=1668225206&single=true&output=csv";
 let PRODUCTS = {
   ropa: [],
   calzado: [],
