@@ -2,10 +2,15 @@
   Google Sheet opcional:
   id,name,desc,price,img,category,stock,sizes,active
 
-  category: ropa, calzado, accesorios o belleza
-  stock: "no" para marcar agotado
-  active: "no" para ocultar el producto
+  Categorías disponibles:
+  ropa, calzado, accesorios, belleza,
+  entrega-inmediata, promociones
+
+  Para que un producto aparezca en más de una categoría,
+  sepáralas con coma:
+  ropa,promociones
 */
+
 const SHEET_CSV_URL = "";
 
 let PRODUCTS = {
@@ -13,6 +18,8 @@ let PRODUCTS = {
   calzado: [],
   accesorios: [],
   belleza: [],
+  "entrega-inmediata": [],
+  promociones: [],
 };
 
 let currentSearch = "";
@@ -28,6 +35,26 @@ const DEMO_PRODUCTS = [
     category: "ropa",
     stock: true,
     sizes: ["S", "M", "L"],
+  },
+  {
+    id: "inmediata-001",
+    name: "Producto disponible",
+    desc: "Producto listo para entrega inmediata.",
+    price: 0,
+    img: "",
+    category: "entrega-inmediata",
+    stock: true,
+    sizes: [],
+  },
+  {
+    id: "promo-001",
+    name: "Oferta especial",
+    desc: "Agrega aquí los productos que estén en promoción.",
+    price: 0,
+    img: "",
+    category: "promociones",
+    stock: true,
+    sizes: [],
   },
 ];
 
@@ -69,7 +96,11 @@ function parseCSV(text) {
       field = "";
     } else if (char === "\n") {
       row.push(field.trim());
-      if (row.some((item) => item !== "")) rows.push(row);
+
+      if (row.some((item) => item !== "")) {
+        rows.push(row);
+      }
+
       row = [];
       field = "";
     } else if (char !== "\r") {
@@ -86,19 +117,18 @@ function parseCSV(text) {
 }
 
 function addProduct(product) {
-  const category = String(product.category || "")
-    .trim()
-    .toLowerCase();
+  const categories = String(product.category || "")
+    .toLowerCase()
+    .split(",")
+    .map((category) => category.trim())
+    .filter(Boolean);
 
-  if (!PRODUCTS[category]) return;
-
-  PRODUCTS[category].push({
-    id: product.id,
+  const item = {
+    id: String(product.id),
     name: product.name || "Producto Sweet Girl",
     desc: product.desc || "",
     price: Number(product.price) || 0,
     img: product.img || "",
-    category,
     stock: String(product.stock || "").toLowerCase() !== "no",
     sizes: product.sizes
       ? String(product.sizes)
@@ -106,6 +136,15 @@ function addProduct(product) {
           .map((size) => size.trim())
           .filter(Boolean)
       : [],
+  };
+
+  categories.forEach((category) => {
+    if (!PRODUCTS[category]) return;
+
+    PRODUCTS[category].push({
+      ...item,
+      category,
+    });
   });
 }
 
@@ -115,6 +154,8 @@ async function loadProducts() {
     calzado: [],
     accesorios: [],
     belleza: [],
+    "entrega-inmediata": [],
+    promociones: [],
   };
 
   if (!SHEET_CSV_URL.trim()) {
@@ -249,8 +290,10 @@ function renderProducts() {
 }
 
 function addProductFromCard(id) {
-  const selector = `[data-size-for="${CSS.escape(id)}"]`;
-  const sizeElement = document.querySelector(selector);
+  const sizeElement = document.querySelector(
+    `[data-size-for="${CSS.escape(id)}"]`,
+  );
+
   const size = sizeElement ? sizeElement.value : "";
 
   if (sizeElement && !size) {
