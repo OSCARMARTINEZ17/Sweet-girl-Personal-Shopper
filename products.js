@@ -140,11 +140,7 @@ function addProduct(product) {
 
   categories.forEach((category) => {
     if (!PRODUCTS[category]) return;
-
-    PRODUCTS[category].push({
-      ...item,
-      category,
-    });
+    PRODUCTS[category].push({ ...item, category });
   });
 }
 
