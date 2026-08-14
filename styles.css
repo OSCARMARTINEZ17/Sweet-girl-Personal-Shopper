@@ -753,6 +753,11 @@ h4 {
   font-size: 1.75rem;
 }
 
+.fab-wa svg {
+  width: 31px;
+  height: 31px;
+}
+
 .site-footer {
   border-top: 1px solid var(--blush);
   background: var(--blush-soft);

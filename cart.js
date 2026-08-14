@@ -258,10 +258,13 @@ function injectCart() {
   whatsappButton.target = "_blank";
   whatsappButton.rel = "noopener";
   whatsappButton.setAttribute("aria-label", "Escríbenos por WhatsApp");
-  whatsappButton.textContent = "💬";
+  whatsappButton.innerHTML = `
+  <svg viewBox="0 0 32 32" aria-hidden="true">
+    <path fill="#ffffff" d="M16.02 3.2A12.8 12.8 0 0 0 5.1 22.67L3.2 28.8l6.3-1.84A12.8 12.8 0 1 0 16.02 3.2Zm0 23.25a10.42 10.42 0 0 1-5.3-1.45l-.38-.23-3.74 1.09 1.1-3.65-.25-.38a10.42 10.42 0 1 1 8.57 4.62Zm5.7-7.82c-.31-.16-1.82-.9-2.1-1-.28-.1-.48-.16-.69.16-.2.3-.79 1-.96 1.2-.18.21-.35.24-.66.08-.3-.15-1.27-.47-2.42-1.5-.9-.8-1.5-1.8-1.68-2.1-.17-.31-.02-.48.13-.63.13-.13.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.37-.03-.52-.08-.16-.69-1.66-.95-2.28-.25-.6-.5-.51-.69-.52h-.59c-.2 0-.52.08-.8.38-.27.3-1.05 1.03-1.05 2.52 0 1.48 1.08 2.92 1.23 3.12.15.2 2.12 3.23 5.13 4.53.72.3 1.28.49 1.72.62.72.23 1.37.2 1.89-.12.58-.36 1.82-1.08 2.08-2.12.26-1.04.26-1.93.18-2.12-.07-.2-.27-.3-.58-.45Z"/>
+  </svg>
+`;
 
   document.body.appendChild(whatsappButton);
-  renderCart();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
