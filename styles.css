@@ -489,6 +489,15 @@ h4 {
 .search-sort-row select:focus {
   border-color: var(--mauve-dark);
 }
+.search-sort-row #refreshBtn {
+  flex-shrink: 0;
+  min-height: 46px;
+  padding: 0 20px;
+}
+.search-sort-row #refreshBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .product-grid {
   display: grid;
@@ -853,7 +862,8 @@ h4 {
   .product-foot {
     flex-direction: column;
   }
-  .search-sort-row select {
+  .search-sort-row select,
+  .search-sort-row #refreshBtn {
     min-height: 46px;
   }
 }

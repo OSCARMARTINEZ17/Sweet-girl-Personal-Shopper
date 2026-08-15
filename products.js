@@ -160,7 +160,10 @@ async function loadProducts() {
   }
 
   try {
-    const response = await fetch(SHEET_CSV_URL);
+    // Se agrega un parámetro con la hora actual para evitar que el navegador
+    // (o algún proxy) devuelva una copia vieja guardada en caché.
+    const cacheBustedUrl = `${SHEET_CSV_URL}&_=${Date.now()}`;
+    const response = await fetch(cacheBustedUrl, { cache: "no-store" });
 
     if (!response.ok) {
       throw new Error("No se pudo cargar el catálogo.");
@@ -300,6 +303,26 @@ function addProductFromCard(id) {
   addToCart(id, size || null);
 }
 
+async function refreshProductsNow() {
+  const button = document.getElementById("refreshBtn");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Actualizando...";
+  }
+
+  await loadProducts();
+  renderProducts();
+
+  if (typeof renderCart === "function") {
+    renderCart();
+  }
+
+  if (button) {
+    button.disabled = false;
+    button.textContent = "Actualizar";
+  }
+}
+
 function setupCatalog() {
   const searchInput = document.getElementById("searchInput");
   const sortSelect = document.getElementById("sortSelect");
@@ -333,4 +356,4 @@ setInterval(async () => {
   if (typeof renderCart === "function") {
     renderCart();
   }
-}, 30000);
+}, 10000);
