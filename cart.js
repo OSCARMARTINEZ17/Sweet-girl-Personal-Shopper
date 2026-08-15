@@ -111,7 +111,7 @@ function renderCart() {
   if (!validLines.length) {
     itemsElement.innerHTML = `
       <div class="cart-empty">
-        <p class="brand">Sweet <span>Girl</span></p>
+        <img src="logo.jpg" alt="Sweet Girl" class="cart-empty-logo">
         <p>Tu carrito está vacío.<br>Agrega tus productos favoritos.</p>
       </div>
     `;

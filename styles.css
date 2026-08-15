@@ -84,6 +84,25 @@ h4 {
   line-height: 1;
 }
 
+.brand-logo {
+  height: 40px;
+  width: auto;
+}
+.footer-brand-logo {
+  height: 58px;
+  margin-bottom: 6px;
+}
+.cart-empty-logo {
+  height: 70px;
+  width: auto;
+  margin: 0 auto 12px;
+}
+
+.brand span,
+.sweet-mark span {
+  color: var(--mauve-dark);
+}
+
 .brand span,
 .sweet-mark span {
   color: var(--mauve-dark);

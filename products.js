@@ -3,7 +3,7 @@
   id,name,desc,price,img,category,stock,sizes,active
 
   Categorías disponibles:
-  ropa, calzado, accesorios, belleza,
+  ropa, calzado, accesorios, belleza, vitaminas,
   entrega-inmediata, promociones
 
   Para que un producto aparezca en más de una categoría,
@@ -18,6 +18,7 @@ let PRODUCTS = {
   calzado: [],
   accesorios: [],
   belleza: [],
+  vitaminas: [],
   "entrega-inmediata": [],
   promociones: [],
 };
@@ -149,12 +150,15 @@ function addProduct(product) {
   });
 }
 
-async function loadProducts() {
+async function loadProducts(options = {}) {
+  const { silent = false } = options;
+
   PRODUCTS = {
     ropa: [],
     calzado: [],
     accesorios: [],
     belleza: [],
+    vitaminas: [],
     "entrega-inmediata": [],
     promociones: [],
   };
@@ -165,8 +169,8 @@ async function loadProducts() {
   }
 
   try {
-    // Se agrega un parámetro con la hora actual para evitar que el navegador
-    // (o algún proxy) devuelva una copia vieja guardada en caché.
+    // Se agrega un parámetro con la hora actual para evitar que el
+    // navegador (o algún proxy) devuelva una copia vieja en caché.
     const cacheBustedUrl = `${SHEET_CSV_URL}&_=${Date.now()}`;
     const response = await fetch(cacheBustedUrl, { cache: "no-store" });
 
@@ -315,7 +319,7 @@ async function refreshProductsNow() {
     button.textContent = "Actualizando...";
   }
 
-  await loadProducts();
+  await loadProducts({ silent: true });
   renderProducts();
 
   if (typeof renderCart === "function") {
@@ -355,7 +359,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 setInterval(async () => {
   if (document.hidden) return;
 
-  await loadProducts();
+  await loadProducts({ silent: true });
   renderProducts();
 
   if (typeof renderCart === "function") {
