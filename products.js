@@ -34,10 +34,16 @@ let PRODUCTS = {
   promociones: [],
 };
 
+// Índice global id -> producto, usado para el modal de "ver en grande"
+// y para poder compartir/abrir un producto sin importar la categoría
+// desde la que se compartió.
+let PRODUCT_INDEX = {};
+
 let currentSearch = "";
 let currentSort = "default";
 let catalogStatus = "loading"; // "loading" | "ok" | "error"
 let hasLoadedOnce = false;
+let deepLinkHandled = false;
 
 const DEMO_PRODUCTS = [
   {
@@ -122,13 +128,19 @@ function addProduct(product) {
 
   categories.forEach((category) => {
     if (!PRODUCTS[category]) return;
-    PRODUCTS[category].push({ ...item, category });
+    const entry = { ...item, category };
+    PRODUCTS[category].push(entry);
+    // Guardamos la primera aparición de este id en el índice global.
+    if (!PRODUCT_INDEX[item.id]) {
+      PRODUCT_INDEX[item.id] = entry;
+    }
   });
 }
 
 async function loadProducts(options = {}) {
   const { silent = false } = options;
   const previousProducts = PRODUCTS;
+  const previousIndex = PRODUCT_INDEX;
 
   PRODUCTS = {
     ropa: [],
@@ -140,6 +152,7 @@ async function loadProducts(options = {}) {
     "entrega-inmediata": [],
     promociones: [],
   };
+  PRODUCT_INDEX = {};
 
   if (
     !SHEET_JSON_URL.trim() ||
@@ -180,6 +193,7 @@ async function loadProducts(options = {}) {
     // refresco automático que falló), no borramos lo que el usuario
     // ya estaba viendo: solo marcamos el error para el próximo render.
     PRODUCTS = previousProducts;
+    PRODUCT_INDEX = previousIndex;
     catalogStatus = "error";
   } finally {
     hasLoadedOnce = true;
@@ -220,6 +234,16 @@ function renderProductCount(count) {
 
   countElement.textContent = count === 1 ? "1 producto" : `${count} productos`;
 }
+
+// Ícono de compartir (flecha hacia arriba saliendo de una caja),
+// el mismo estilo usado en la referencia que compartiste.
+const SHARE_ICON_SVG = `
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 16V4"></path>
+    <path d="M7 9l5-5 5 5"></path>
+    <path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"></path>
+  </svg>
+`;
 
 function renderProducts() {
   const grid = document.getElementById("productGrid");
@@ -309,8 +333,23 @@ function renderProducts() {
         : "";
 
       return `
-        <article class="product-card">
-          <div class="product-media">
+        <article class="product-card" data-product-id="${id}">
+          <div
+            class="product-media sg-clickable-media"
+            onclick="openProductModal('${id}')"
+            role="button"
+            tabindex="0"
+            aria-label="Ver ${name} en grande"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductModal('${id}');}"
+          >
+            <button
+              type="button"
+              class="sg-share-btn"
+              aria-label="Compartir ${name}"
+              onclick="event.stopPropagation(); shareProduct('${id}')"
+            >
+              ${SHARE_ICON_SVG}
+            </button>
             ${image}
             ${product.stock ? "" : '<span class="stock-badge">Agotado</span>'}
           </div>
@@ -333,7 +372,7 @@ function renderProducts() {
                 class="add-btn"
                 data-id="${id}"
                 ${product.stock ? "" : "disabled"}
-                onclick="addProductFromCard('${id}')"
+                onclick="event.stopPropagation(); addProductFromCard('${id}')"
               >
                 ${product.stock ? "Agregar" : "Agotado"}
               </button>
@@ -378,6 +417,8 @@ async function refreshProductsNow() {
     button.disabled = false;
     button.textContent = "Actualizar";
   }
+
+  maybeOpenDeepLinkedProduct();
 }
 
 function setupCatalog() {
@@ -397,6 +438,229 @@ function setupCatalog() {
   renderProducts();
 }
 
+/* ============================================================
+   COMPARTIR PRODUCTO
+   ============================================================ */
+
+function buildProductShareUrl(id) {
+  const url = new URL(window.location.href);
+  url.hash = "";
+  url.searchParams.set("producto", id);
+  return url.toString();
+}
+
+function showSgToast(message) {
+  let toast = document.getElementById("sgToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "sgToast";
+    toast.className = "sg-toast";
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.classList.remove("sg-toast-show");
+  // Forzamos reflow para poder reiniciar la animación si ya estaba visible.
+  void toast.offsetWidth;
+  toast.classList.add("sg-toast-show");
+
+  clearTimeout(showSgToast._timer);
+  showSgToast._timer = setTimeout(() => {
+    toast.classList.remove("sg-toast-show");
+  }, 2200);
+}
+
+async function shareProduct(id) {
+  const product = PRODUCT_INDEX[id];
+  if (!product) return;
+
+  const url = buildProductShareUrl(id);
+  const shareData = {
+    title: `${product.name} | Sweet Girl`,
+    text: product.desc
+      ? `${product.name} - ${product.desc}`
+      : product.name,
+    url,
+  };
+
+  if (navigator.share) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (error) {
+      // Si el usuario cancela el share nativo, no hacemos nada más.
+      if (error && error.name === "AbortError") return;
+    }
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(url);
+      showSgToast("Enlace copiado ✅");
+      return;
+    } catch (error) {
+      // Sigue al fallback de abajo.
+    }
+  }
+
+  window.prompt("Copia el enlace del producto:", url);
+}
+
+/* ============================================================
+   MODAL "VER EN GRANDE"
+   ============================================================ */
+
+function ensureProductModal() {
+  let modal = document.getElementById("sgProductModal");
+  if (modal) return modal;
+
+  modal = document.createElement("div");
+  modal.id = "sgProductModal";
+  modal.className = "sg-modal-overlay";
+  modal.innerHTML = `
+    <div class="sg-modal" role="dialog" aria-modal="true" aria-labelledby="sgModalTitle">
+      <button type="button" class="sg-modal-close" aria-label="Cerrar" onclick="closeProductModal()">✕</button>
+      <div class="sg-modal-media">
+        <button type="button" class="sg-share-btn sg-modal-share" id="sgModalShareBtn" aria-label="Compartir producto">
+          ${SHARE_ICON_SVG}
+        </button>
+        <img id="sgModalImg" src="" alt="" />
+        <span id="sgModalStockBadge" class="stock-badge" hidden>Agotado</span>
+      </div>
+      <div class="sg-modal-body">
+        <h3 id="sgModalTitle"></h3>
+        <p id="sgModalDesc" class="desc"></p>
+        <div id="sgModalSizeWrap"></div>
+        <div class="product-foot">
+          <span class="price-wrap">
+            <span id="sgModalPriceOriginal" class="price-original" hidden></span>
+            <span id="sgModalPrice" class="price"></span>
+          </span>
+          <button type="button" class="add-btn" id="sgModalAddBtn" data-id="">Agregar</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeProductModal();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("sg-modal-open")) {
+      closeProductModal();
+    }
+  });
+
+  return modal;
+}
+
+function openProductModal(id) {
+  const product = PRODUCT_INDEX[id];
+  if (!product) return;
+
+  const modal = ensureProductModal();
+
+  const img = document.getElementById("sgModalImg");
+  const title = document.getElementById("sgModalTitle");
+  const desc = document.getElementById("sgModalDesc");
+  const priceEl = document.getElementById("sgModalPrice");
+  const priceOriginalEl = document.getElementById("sgModalPriceOriginal");
+  const stockBadge = document.getElementById("sgModalStockBadge");
+  const sizeWrap = document.getElementById("sgModalSizeWrap");
+  const addBtn = document.getElementById("sgModalAddBtn");
+  const shareBtn = document.getElementById("sgModalShareBtn");
+
+  if (product.img) {
+    img.src = product.img;
+    img.alt = product.name;
+    img.style.display = "";
+  } else {
+    img.removeAttribute("src");
+    img.style.display = "none";
+  }
+
+  title.textContent = product.name;
+  desc.textContent = product.desc || "";
+
+  if (product.originalPrice) {
+    priceOriginalEl.hidden = false;
+    priceOriginalEl.textContent = formatCOP(product.originalPrice);
+  } else {
+    priceOriginalEl.hidden = true;
+  }
+  priceEl.textContent = formatCOP(product.price);
+
+  stockBadge.hidden = product.stock;
+
+  if (product.sizes.length) {
+    sizeWrap.innerHTML = `
+      <select id="sgModalSizeSelect" class="size-select" aria-label="Selecciona la talla de ${escapeHtml(product.name)}">
+        <option value="">Selecciona talla</option>
+        ${product.sizes
+          .map(
+            (size) =>
+              `<option value="${escapeHtml(size)}">${escapeHtml(size)}</option>`,
+          )
+          .join("")}
+      </select>
+    `;
+  } else {
+    sizeWrap.innerHTML = "";
+  }
+
+  addBtn.disabled = !product.stock;
+  addBtn.textContent = product.stock ? "Agregar" : "Agotado";
+  addBtn.dataset.id = product.id;
+  addBtn.onclick = () => addProductFromModal(product.id);
+
+  shareBtn.onclick = () => shareProduct(product.id);
+
+  modal.classList.add("sg-modal-open");
+  document.body.classList.add("sg-modal-locked");
+
+  // Reflejamos el producto abierto en la URL para poder compartirlo.
+  const url = new URL(window.location.href);
+  url.searchParams.set("producto", product.id);
+  window.history.replaceState({}, "", url);
+}
+
+function closeProductModal() {
+  const modal = document.getElementById("sgProductModal");
+  if (!modal) return;
+
+  modal.classList.remove("sg-modal-open");
+  document.body.classList.remove("sg-modal-locked");
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("producto");
+  window.history.replaceState({}, "", url);
+}
+
+function addProductFromModal(id) {
+  const sizeSelect = document.getElementById("sgModalSizeSelect");
+  const size = sizeSelect ? sizeSelect.value : "";
+
+  if (sizeSelect && !size) {
+    alert("Por favor selecciona una talla.");
+    return;
+  }
+
+  addToCart(id, size || null);
+  closeProductModal();
+}
+
+function maybeOpenDeepLinkedProduct() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get("producto");
+  if (!id || !PRODUCT_INDEX[id]) return;
+
+  openProductModal(id);
+  deepLinkHandled = true;
+}
+
 window.PRODUCTS_READY = loadProducts();
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -406,6 +670,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await window.PRODUCTS_READY;
   setupCatalog();
+  maybeOpenDeepLinkedProduct();
 });
 
 setInterval(async () => {
@@ -416,5 +681,9 @@ setInterval(async () => {
 
   if (typeof renderCart === "function") {
     renderCart();
+  }
+
+  if (!deepLinkHandled) {
+    maybeOpenDeepLinkedProduct();
   }
 }, 45000);

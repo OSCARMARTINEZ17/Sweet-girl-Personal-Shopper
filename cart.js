@@ -94,20 +94,20 @@ function cartTotal(cart) {
 }
 
 function flashAddedButton(id) {
-  const button = document.querySelector(
+  const buttons = document.querySelectorAll(
     `.add-btn[data-id="${CSS.escape(id)}"]`,
   );
 
-  if (!button) return;
+  buttons.forEach((button) => {
+    const text = button.textContent;
+    button.textContent = "Agregado ✓";
+    button.classList.add("added");
 
-  const text = button.textContent;
-  button.textContent = "Agregado ✓";
-  button.classList.add("added");
-
-  setTimeout(() => {
-    button.textContent = text;
-    button.classList.remove("added");
-  }, 1200);
+    setTimeout(() => {
+      button.textContent = text;
+      button.classList.remove("added");
+    }, 1200);
+  });
 }
 
 // ---------- Toast "Producto eliminado · Deshacer" ----------
