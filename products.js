@@ -3,7 +3,7 @@
   id,name,desc,price,img,category,stock,sizes,active
 
   Categorías disponibles:
-  ropa, calzado, accesorios, belleza, vitaminas,
+  ropa, calzado, accesorios, belleza, perfumes, vitaminas,
   entrega-inmediata, promociones
 
   Para que un producto aparezca en más de una categoría,
@@ -19,6 +19,7 @@ let PRODUCTS = {
   accesorios: [],
   belleza: [],
   vitaminas: [],
+  perfumes: [],
   "entrega-inmediata": [],
   promociones: [],
 };
@@ -159,6 +160,7 @@ async function loadProducts(options = {}) {
     accesorios: [],
     belleza: [],
     vitaminas: [],
+    perfumes: [],
     "entrega-inmediata": [],
     promociones: [],
   };
