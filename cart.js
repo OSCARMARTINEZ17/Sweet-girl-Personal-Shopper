@@ -50,18 +50,36 @@ function changeQuantity(lineId, amount) {
 
   if (!line) return;
 
-  line.quantity += amount;
+  const nextQuantity = line.quantity + amount;
 
-  if (line.quantity <= 0) {
-    removeFromCart(lineId);
+  if (nextQuantity <= 0) {
+    // Bajar la cantidad a 0 elimina el producto: pedimos confirmación
+    // porque es fácil llegar aquí sin querer haciendo clic varias veces.
+    const product = findProduct(line.id);
+
+    showConfirmModal({
+      title: "Quitar producto",
+      message: `¿Quitar "${product ? product.name : "este producto"}" del carrito?`,
+      confirmLabel: "Quitar",
+      cancelLabel: "Cancelar",
+      onConfirm: () => removeFromCart(lineId),
+    });
     return;
   }
 
+  line.quantity = nextQuantity;
   saveCart(cart);
 }
 
 function removeFromCart(lineId) {
-  saveCart(getCart().filter((line) => line.lineId !== lineId));
+  const cart = getCart();
+  const removedLine = cart.find((line) => line.lineId === lineId);
+
+  saveCart(cart.filter((line) => line.lineId !== lineId));
+
+  if (removedLine) {
+    showUndoToast(removedLine);
+  }
 }
 
 function cartCount(cart) {
@@ -92,21 +110,223 @@ function flashAddedButton(id) {
   }, 1200);
 }
 
+// ---------- Toast "Producto eliminado · Deshacer" ----------
+
+let undoToastTimeout = null;
+
+function showUndoToast(removedLine) {
+  clearTimeout(undoToastTimeout);
+
+  let toast = document.getElementById("cartToast");
+
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "cartToast";
+    toast.className = "cart-toast";
+    document.body.appendChild(toast);
+  }
+
+  toast.innerHTML = `
+    <span>Producto eliminado</span>
+    <button type="button" id="cartUndoBtn">Deshacer</button>
+  `;
+  toast.classList.add("show");
+
+  document.getElementById("cartUndoBtn").addEventListener("click", () => {
+    const cart = getCart();
+    cart.push(removedLine);
+    saveCart(cart);
+    toast.classList.remove("show");
+    clearTimeout(undoToastTimeout);
+  });
+
+  undoToastTimeout = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 5000);
+}
+
+// ---------- Modal de confirmación (reemplaza window.confirm) ----------
+
+function showConfirmModal({
+  title,
+  message,
+  confirmLabel = "Confirmar",
+  cancelLabel = "Cancelar",
+  onConfirm,
+  onCancel,
+}) {
+  const overlay = document.createElement("div");
+  overlay.className = "confirm-overlay";
+  overlay.innerHTML = `
+    <div
+      class="confirm-box"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="confirmTitle"
+      aria-describedby="confirmMsg"
+    >
+      <h4 id="confirmTitle">${title}</h4>
+      <p id="confirmMsg">${message}</p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-outline" data-action="cancel">
+          ${cancelLabel}
+        </button>
+        <button type="button" class="btn btn-primary" data-action="confirm">
+          ${confirmLabel}
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const confirmBtn = overlay.querySelector('[data-action="confirm"]');
+  const cancelBtn = overlay.querySelector('[data-action="cancel"]');
+  const previouslyFocused = document.activeElement;
+
+  function cleanup() {
+    overlay.remove();
+    document.removeEventListener("keydown", onKeydown);
+    previouslyFocused?.focus?.();
+  }
+
+  function onKeydown(event) {
+    if (event.key === "Escape") {
+      cleanup();
+      onCancel?.();
+    }
+  }
+
+  confirmBtn.addEventListener("click", () => {
+    cleanup();
+    onConfirm?.();
+  });
+
+  cancelBtn.addEventListener("click", () => {
+    cleanup();
+    onCancel?.();
+  });
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      cleanup();
+      onCancel?.();
+    }
+  });
+
+  document.addEventListener("keydown", onKeydown);
+  confirmBtn.focus();
+}
+
+// ---------- Productos relacionados (llena el espacio vacío del carrito) ----------
+
+function renderRelatedProducts(cart) {
+  const container = document.getElementById("cartRelated");
+
+  if (!container) return;
+
+  // Solo mostramos sugerencias cuando el carrito tiene pocos productos:
+  // con muchos productos el espacio ya está lleno y no hace falta.
+  if (!cart.length || cart.length > 2) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const cartIds = new Set(cart.map((line) => line.id));
+  const firstProduct = findProduct(cart[0].id);
+  const preferredCategory = firstProduct ? firstProduct.category : null;
+
+  let pool = preferredCategory
+    ? [...(PRODUCTS[preferredCategory] || [])]
+    : [];
+  pool = pool.filter((product) => !cartIds.has(product.id) && product.stock);
+
+  if (pool.length < 3) {
+    const allProducts = Object.values(PRODUCTS).flat();
+    const extra = allProducts.filter(
+      (product) =>
+        !cartIds.has(product.id) &&
+        product.stock &&
+        !pool.some((existing) => existing.id === product.id),
+    );
+    pool = pool.concat(extra);
+  }
+
+  const picks = pool.slice(0, 3);
+
+  if (!picks.length) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = `
+    <p class="cart-related-title">También te puede interesar</p>
+    <div class="cart-related-grid">
+      ${picks
+        .map((product) => {
+          const name = escapeHtml(product.name);
+          const image = product.img
+            ? `<img src="${escapeHtml(product.img)}" alt="${name}">`
+            : `<span>${name.charAt(0)}</span>`;
+
+          return `
+            <a class="cart-related-item" href="${product.category}.html">
+              <span class="cart-related-media">${image}</span>
+              <span class="cart-related-name">${name}</span>
+              <span class="cart-related-price">${formatCOP(product.price)}</span>
+            </a>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+// ---------- Nota de envío (varía por destino y peso, no por monto) ----------
+
+function renderShippingNote() {
+  const element = document.getElementById("cartShipping");
+
+  if (!element || element.dataset.rendered) return;
+
+  element.dataset.rendered = "true";
+  element.innerHTML = `
+    <p class="shipping-note">
+      Envío ≈ $15.000 en Medellín y el área metropolitana. Fuera de esa
+      zona, el valor varía según destino y peso del paquete —
+      te lo confirmamos por WhatsApp.
+    </p>
+  `;
+}
+
+// ---------- Render principal del carrito ----------
+
 function renderCart() {
   const cart = getCart();
   const itemsElement = document.getElementById("cartItems");
   const totalElement = document.getElementById("cartTotal");
   const sendButton = document.getElementById("cartSendBtn");
+  const clearButton = document.getElementById("cartClearBtn");
+  const headingElement = document.getElementById("cartHeading");
+
+  const items = cartCount(cart);
 
   document.querySelectorAll(".cart-count").forEach((element) => {
-    const items = cartCount(cart);
     element.textContent = items;
     element.style.display = items ? "flex" : "none";
   });
 
+  if (headingElement) {
+    headingElement.textContent = items ? `Tu carrito (${items})` : "Tu carrito";
+  }
+
   if (!itemsElement) return;
 
   const validLines = cart.filter((line) => findProduct(line.id));
+
+  if (clearButton) {
+    clearButton.style.display = validLines.length ? "inline-flex" : "none";
+  }
 
   if (!validLines.length) {
     itemsElement.innerHTML = `
@@ -118,6 +338,7 @@ function renderCart() {
 
     totalElement.textContent = formatCOP(0);
     sendButton.disabled = true;
+    renderRelatedProducts([]);
     return;
   }
 
@@ -128,6 +349,11 @@ function renderCart() {
       const image = product.img
         ? `<img src="${product.img}" alt="${product.name}">`
         : `<span>${product.name.charAt(0)}</span>`;
+
+      const unitPriceRow =
+        line.quantity > 1
+          ? `<span class="line-unit-price">${formatCOP(product.price)} c/u</span>`
+          : "";
 
       return `
         <div class="cart-line">
@@ -150,17 +376,24 @@ function renderCart() {
             </button>
           </div>
 
-          <strong class="line-price">
-            ${formatCOP(product.price * line.quantity)}
-          </strong>
+          <span class="line-price">
+            ${unitPriceRow}
+            <strong>${formatCOP(product.price * line.quantity)}</strong>
+          </span>
         </div>
       `;
     })
     .join("");
 
-  totalElement.textContent = formatCOP(cartTotal(validLines));
+  const total = cartTotal(validLines);
+
+  totalElement.textContent = formatCOP(total);
   sendButton.disabled = false;
+
+  renderRelatedProducts(validLines);
 }
+
+// ---------- Abrir / cerrar el drawer ----------
 
 let lastFocusedBeforeCart = null;
 
@@ -178,6 +411,20 @@ function closeCart() {
   document.getElementById("cartDrawer")?.classList.remove("open");
 
   lastFocusedBeforeCart?.focus?.();
+}
+
+function clearCart() {
+  const cart = getCart();
+
+  if (!cart.length) return;
+
+  showConfirmModal({
+    title: "Vaciar carrito",
+    message: "¿Seguro que quieres quitar todos los productos del carrito?",
+    confirmLabel: "Vaciar",
+    cancelLabel: "Cancelar",
+    onConfirm: () => saveCart([]),
+  });
 }
 
 function sendCartToWhatsApp() {
@@ -208,14 +455,26 @@ function sendCartToWhatsApp() {
 
   // Evita que el mismo pedido se vuelva a enviar por error si el
   // cliente vuelve a abrir el carrito más tarde.
-  const shouldClear = window.confirm(
-    "Abrimos WhatsApp con tu pedido. ¿Quieres vaciar el carrito ahora?",
-  );
+  showConfirmModal({
+    title: "Pedido enviado",
+    message: "Abrimos WhatsApp con tu pedido. ¿Quieres vaciar el carrito ahora?",
+    confirmLabel: "Vaciar carrito",
+    cancelLabel: "Mantener carrito",
+    onConfirm: () => {
+      saveCart([]);
+      closeCart();
+    },
+  });
+}
 
-  if (shouldClear) {
-    saveCart([]);
-    closeCart();
-  }
+// ---------- Accesibilidad: atrapar el foco (Tab) dentro del drawer ----------
+
+function getFocusableElements(container) {
+  return Array.from(
+    container.querySelectorAll(
+      'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => element.offsetParent !== null);
 }
 
 function injectCart() {
@@ -239,7 +498,11 @@ function injectCart() {
 
     <div class="cart-items" id="cartItems"></div>
 
+    <div class="cart-related" id="cartRelated"></div>
+
     <div class="cart-foot">
+      <div class="cart-shipping" id="cartShipping"></div>
+
       <div class="cart-total-row">
         <span>Total</span>
         <span id="cartTotal">$0</span>
@@ -247,6 +510,10 @@ function injectCart() {
 
       <button class="btn btn-wa btn-block" id="cartSendBtn" onclick="sendCartToWhatsApp()">
         Enviar consulta por WhatsApp
+      </button>
+
+      <button type="button" id="cartClearBtn" class="cart-clear-btn" onclick="clearCart()">
+        Vaciar carrito
       </button>
 
       <p class="cart-note">
@@ -257,13 +524,43 @@ function injectCart() {
 
   document.body.append(overlay, drawer);
 
+  renderShippingNote();
+
   document.querySelectorAll("[data-cart-toggle]").forEach((button) => {
     button.addEventListener("click", openCart);
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && drawer.classList.contains("open")) {
+    if (!drawer.classList.contains("open")) return;
+
+    if (event.key === "Escape") {
       closeCart();
+      return;
+    }
+
+    if (event.key === "Tab") {
+      const focusable = getFocusableElements(drawer);
+
+      if (!focusable.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  });
+
+  // Mantiene el carrito sincronizado si el cliente tiene el sitio
+  // abierto en varias pestañas al mismo tiempo.
+  window.addEventListener("storage", (event) => {
+    if (event.key === CART_KEY) {
+      renderCart();
     }
   });
 
