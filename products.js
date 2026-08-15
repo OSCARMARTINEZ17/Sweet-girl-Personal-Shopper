@@ -5,7 +5,7 @@
   de "Publicar en la web").
 
   Formato de cada producto:
-  id,name,desc,price,img,category,stock,sizes,active
+  id,name,desc,price,img,category,stock,sizes,active,original_price
 
   Categorías disponibles:
   ropa, calzado, accesorios, belleza, perfumes, vitaminas,
@@ -14,6 +14,11 @@
   Para que un producto aparezca en más de una categoría,
   sepáralas con coma:
   ropa,promociones
+
+  Columna opcional "original_price": si la pones y es mayor al
+  precio actual ("price"), el producto se agrega automáticamente
+  también a "promociones" (sin escribirlo a mano) y se muestra el
+  precio tachado en la tarjeta.
 */
 
 const SHEET_JSON_URL =
@@ -31,6 +36,8 @@ let PRODUCTS = {
 
 let currentSearch = "";
 let currentSort = "default";
+let catalogStatus = "loading"; // "loading" | "ok" | "error"
+let hasLoadedOnce = false;
 
 const DEMO_PRODUCTS = [
   {
@@ -86,11 +93,16 @@ function addProduct(product) {
     .map((category) => category.trim())
     .filter(Boolean);
 
+  const originalPrice = Number(product.original_price) || 0;
+  const price = Number(product.price) || 0;
+  const onSale = originalPrice > price;
+
   const item = {
     id: String(product.id),
     name: product.name || "Producto Sweet Girl",
     desc: product.desc || "",
-    price: Number(product.price) || 0,
+    price,
+    originalPrice: onSale ? originalPrice : 0,
     img: product.img || "",
     stock: String(product.stock || "").toLowerCase() !== "no",
     sizes: product.sizes
@@ -101,6 +113,13 @@ function addProduct(product) {
       : [],
   };
 
+  // Si el producto trae "original_price" mayor al precio actual, se
+  // considera en oferta y se agrega también a "promociones" sin
+  // necesidad de escribirlo manualmente en la columna "category".
+  if (onSale && !categories.includes("promociones")) {
+    categories.push("promociones");
+  }
+
   categories.forEach((category) => {
     if (!PRODUCTS[category]) return;
     PRODUCTS[category].push({ ...item, category });
@@ -109,6 +128,7 @@ function addProduct(product) {
 
 async function loadProducts(options = {}) {
   const { silent = false } = options;
+  const previousProducts = PRODUCTS;
 
   PRODUCTS = {
     ropa: [],
@@ -126,6 +146,8 @@ async function loadProducts(options = {}) {
     SHEET_JSON_URL.includes("PON_AQUI_TU_ID_DE_IMPLEMENTACION")
   ) {
     DEMO_PRODUCTS.forEach(addProduct);
+    catalogStatus = "ok";
+    hasLoadedOnce = true;
     return;
   }
 
@@ -150,8 +172,17 @@ async function loadProducts(options = {}) {
 
       addProduct(product);
     });
+
+    catalogStatus = "ok";
   } catch (error) {
     console.error("Error cargando productos:", error);
+    // Si ya habíamos cargado el catálogo antes (por ejemplo, en un
+    // refresco automático que falló), no borramos lo que el usuario
+    // ya estaba viendo: solo marcamos el error para el próximo render.
+    PRODUCTS = previousProducts;
+    catalogStatus = "error";
+  } finally {
+    hasLoadedOnce = true;
   }
 }
 
@@ -178,10 +209,61 @@ function getCurrentProducts() {
   return items;
 }
 
+function renderProductCount(count) {
+  const countElement = document.getElementById("productCount");
+  if (!countElement) return;
+
+  if (!count) {
+    countElement.textContent = "";
+    return;
+  }
+
+  countElement.textContent = count === 1 ? "1 producto" : `${count} productos`;
+}
+
 function renderProducts() {
   const grid = document.getElementById("productGrid");
 
   if (!grid) return;
+
+  if (!hasLoadedOnce) {
+    grid.innerHTML = Array.from({ length: 6 })
+      .map(
+        () => `
+          <article class="product-card skeleton-card" aria-hidden="true">
+            <div class="product-media skeleton-block"></div>
+            <div class="product-body">
+              <div class="skeleton-line skeleton-line-title"></div>
+              <div class="skeleton-line skeleton-line-text"></div>
+            </div>
+          </article>
+        `,
+      )
+      .join("");
+    renderProductCount(0);
+    return;
+  }
+
+  if (catalogStatus === "error") {
+    grid.innerHTML = `
+      <div class="empty-message">
+        <h3>No pudimos cargar el catálogo</h3>
+        <p>
+          Ocurrió un problema al conectar con nuestro catálogo. Verifica tu
+          conexión e inténtalo de nuevo.
+        </p>
+        <button
+          type="button"
+          class="btn btn-outline"
+          onclick="refreshProductsNow()"
+        >
+          Reintentar
+        </button>
+      </div>
+    `;
+    renderProductCount(0);
+    return;
+  }
 
   const products = getCurrentProducts();
 
@@ -192,8 +274,11 @@ function renderProducts() {
         <p>Aún no tenemos productos disponibles en esta categoría.</p>
       </div>
     `;
+    renderProductCount(0);
     return;
   }
+
+  renderProductCount(products.length);
 
   grid.innerHTML = products
     .map((product) => {
@@ -207,7 +292,11 @@ function renderProducts() {
 
       const sizeSelect = product.sizes.length
         ? `
-          <select class="size-select" data-size-for="${id}">
+          <select
+            class="size-select"
+            data-size-for="${id}"
+            aria-label="Selecciona la talla de ${name}"
+          >
             <option value="">Selecciona talla</option>
             ${product.sizes
               .map(
@@ -232,7 +321,14 @@ function renderProducts() {
             ${sizeSelect}
 
             <div class="product-foot">
-              <span class="price">${formatCOP(product.price)}</span>
+              <span class="price-wrap">
+                ${
+                  product.originalPrice
+                    ? `<span class="price-original">${formatCOP(product.originalPrice)}</span>`
+                    : ""
+                }
+                <span class="price">${formatCOP(product.price)}</span>
+              </span>
               <button
                 class="add-btn"
                 data-id="${id}"
@@ -304,6 +400,10 @@ function setupCatalog() {
 window.PRODUCTS_READY = loadProducts();
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Muestra el skeleton de inmediato en vez de esperar a que
+  // termine la primera carga del catálogo.
+  renderProducts();
+
   await window.PRODUCTS_READY;
   setupCatalog();
 });
@@ -317,4 +417,4 @@ setInterval(async () => {
   if (typeof renderCart === "function") {
     renderCart();
   }
-}, 10000);
+}, 45000);

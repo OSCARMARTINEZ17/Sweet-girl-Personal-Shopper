@@ -162,14 +162,22 @@ function renderCart() {
   sendButton.disabled = false;
 }
 
+let lastFocusedBeforeCart = null;
+
 function openCart() {
+  lastFocusedBeforeCart = document.activeElement;
+
   document.getElementById("cartOverlay")?.classList.add("open");
   document.getElementById("cartDrawer")?.classList.add("open");
+
+  document.getElementById("cartClose")?.focus();
 }
 
 function closeCart() {
   document.getElementById("cartOverlay")?.classList.remove("open");
   document.getElementById("cartDrawer")?.classList.remove("open");
+
+  lastFocusedBeforeCart?.focus?.();
 }
 
 function sendCartToWhatsApp() {
@@ -197,6 +205,17 @@ function sendCartToWhatsApp() {
     "_blank",
     "noopener",
   );
+
+  // Evita que el mismo pedido se vuelva a enviar por error si el
+  // cliente vuelve a abrir el carrito más tarde.
+  const shouldClear = window.confirm(
+    "Abrimos WhatsApp con tu pedido. ¿Quieres vaciar el carrito ahora?",
+  );
+
+  if (shouldClear) {
+    saveCart([]);
+    closeCart();
+  }
 }
 
 function injectCart() {
@@ -208,11 +227,14 @@ function injectCart() {
   const drawer = document.createElement("aside");
   drawer.id = "cartDrawer";
   drawer.className = "cart-drawer";
+  drawer.setAttribute("role", "dialog");
+  drawer.setAttribute("aria-modal", "true");
+  drawer.setAttribute("aria-labelledby", "cartHeading");
 
   drawer.innerHTML = `
     <div class="cart-head">
-      <h3>Tu carrito</h3>
-      <button class="cart-close" aria-label="Cerrar carrito" onclick="closeCart()">×</button>
+      <h3 id="cartHeading">Tu carrito</h3>
+      <button id="cartClose" class="cart-close" aria-label="Cerrar carrito" onclick="closeCart()">×</button>
     </div>
 
     <div class="cart-items" id="cartItems"></div>
@@ -237,6 +259,12 @@ function injectCart() {
 
   document.querySelectorAll("[data-cart-toggle]").forEach((button) => {
     button.addEventListener("click", openCart);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && drawer.classList.contains("open")) {
+      closeCart();
+    }
   });
 
   const menuToggle = document.getElementById("menuToggle");
