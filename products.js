@@ -1,5 +1,10 @@
 /*
-  Google Sheet opcional:
+  Fuente de datos: Google Apps Script (Web App) que expone
+  un endpoint doGet() con el catálogo en JSON, leído en vivo
+  directamente de las pestañas del Sheet (sin el caché lento
+  de "Publicar en la web").
+
+  Formato de cada producto:
   id,name,desc,price,img,category,stock,sizes,active
 
   Categorías disponibles:
@@ -11,8 +16,8 @@
   ropa,promociones
 */
 
-const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vR9S3kboBuiC1c3iwKAU8qm54v-JXU7xGwxNiGrKnPoz5et9m6PzcdkhDXUGY3oRcJi_rDziF-GvPnQ/pub?gid=1668225206&single=true&output=csv";
+const SHEET_JSON_URL =
+  "https://script.google.com/macros/s/AKfycbzpjskeA5EH9mSUpnrAEdOlTGUGGkU-qXaWuAzz7cdDeBzccqfepl5zM_Wt_t4HPa_39w/exec";
 let PRODUCTS = {
   ropa: [],
   calzado: [],
@@ -74,55 +79,6 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-function parseCSV(text) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    const next = text[i + 1];
-
-    if (inQuotes) {
-      if (char === '"' && next === '"') {
-        field += '"';
-        i += 1;
-      } else if (char === '"') {
-        inQuotes = false;
-      } else {
-        field += char;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      inQuotes = true;
-    } else if (char === ",") {
-      row.push(field.trim());
-      field = "";
-    } else if (char === "\n") {
-      row.push(field.trim());
-
-      if (row.some((item) => item !== "")) {
-        rows.push(row);
-      }
-
-      row = [];
-      field = "";
-    } else if (char !== "\r") {
-      field += char;
-    }
-  }
-
-  if (field || row.length) {
-    row.push(field.trim());
-    rows.push(row);
-  }
-
-  return rows;
-}
-
 function addProduct(product) {
   const categories = String(product.category || "")
     .toLowerCase()
@@ -165,7 +121,10 @@ async function loadProducts(options = {}) {
     promociones: [],
   };
 
-  if (!SHEET_CSV_URL.trim()) {
+  if (
+    !SHEET_JSON_URL.trim() ||
+    SHEET_JSON_URL.includes("PON_AQUI_TU_ID_DE_IMPLEMENTACION")
+  ) {
     DEMO_PRODUCTS.forEach(addProduct);
     return;
   }
@@ -173,28 +132,19 @@ async function loadProducts(options = {}) {
   try {
     // Se agrega un parámetro con la hora actual para evitar que el
     // navegador (o algún proxy) devuelva una copia vieja en caché.
-    const cacheBustedUrl = `${SHEET_CSV_URL}&_=${Date.now()}`;
+    // El Web App de Apps Script consulta el Sheet en vivo en cada
+    // solicitud, así que aquí no hay caché lento de Google de por medio.
+    const cacheBustedUrl = `${SHEET_JSON_URL}?_=${Date.now()}`;
     const response = await fetch(cacheBustedUrl, { cache: "no-store" });
 
     if (!response.ok) {
       throw new Error("No se pudo cargar el catálogo.");
     }
 
-    const rows = parseCSV(await response.text());
+    const data = await response.json();
+    const products = Array.isArray(data.products) ? data.products : [];
 
-    if (rows.length < 2) return;
-
-    const headers = rows[0].map((header) =>
-      header.trim().toLowerCase().replace(/\s+/g, ""),
-    );
-
-    rows.slice(1).forEach((columns) => {
-      const product = {};
-
-      headers.forEach((header, index) => {
-        product[header] = (columns[index] || "").trim();
-      });
-
+    products.forEach((product) => {
       if (!product.id || !product.category) return;
       if (String(product.active).toLowerCase() === "no") return;
 
