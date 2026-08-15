@@ -58,6 +58,11 @@ const DEMO_PRODUCTS = [
   },
 ];
 
+function formatCOP(value) {
+  const rounded = Math.round(Number(value) || 0);
+  return `$${rounded.toLocaleString("es-CO")}`;
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -271,7 +276,7 @@ function renderProducts() {
             ${sizeSelect}
 
             <div class="product-foot">
-              <span class="price">$${product.price.toFixed(2)}</span>
+              <span class="price">${formatCOP(product.price)}</span>
               <button
                 class="add-btn"
                 data-id="${id}"

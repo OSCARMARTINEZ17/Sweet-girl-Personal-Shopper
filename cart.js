@@ -116,7 +116,7 @@ function renderCart() {
       </div>
     `;
 
-    totalElement.textContent = "$0.00";
+    totalElement.textContent = formatCOP(0);
     sendButton.disabled = true;
     return;
   }
@@ -151,14 +151,14 @@ function renderCart() {
           </div>
 
           <strong class="line-price">
-            $${(product.price * line.quantity).toFixed(2)}
+            ${formatCOP(product.price * line.quantity)}
           </strong>
         </div>
       `;
     })
     .join("");
 
-  totalElement.textContent = `$${cartTotal(validLines).toFixed(2)}`;
+  totalElement.textContent = formatCOP(cartTotal(validLines));
   sendButton.disabled = false;
 }
 
@@ -183,12 +183,12 @@ function sendCartToWhatsApp() {
     const product = findProduct(line.id);
     const size = line.size ? ` (${line.size})` : "";
 
-    message += `• ${product.name}${size} x${line.quantity} — $${(
-      product.price * line.quantity
-    ).toFixed(2)}\n`;
+    message += `• ${product.name}${size} x${line.quantity} — ${formatCOP(
+      product.price * line.quantity,
+    )}\n`;
   });
 
-  message += `\nTotal: $${cartTotal(cart).toFixed(2)}\n\n`;
+  message += `\nTotal: ${formatCOP(cartTotal(cart))}\n\n`;
   message +=
     "Estoy en: \n\n¿Me confirmas disponibilidad, precio final y forma de envío?";
 
@@ -220,7 +220,7 @@ function injectCart() {
     <div class="cart-foot">
       <div class="cart-total-row">
         <span>Total</span>
-        <span id="cartTotal">$0.00</span>
+        <span id="cartTotal">$0</span>
       </div>
 
       <button class="btn btn-wa btn-block" id="cartSendBtn" onclick="sendCartToWhatsApp()">
