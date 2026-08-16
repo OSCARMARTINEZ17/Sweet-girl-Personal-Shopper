@@ -1306,3 +1306,96 @@ body.sg-modal-locked {
     padding: 22px 20px;
   }
 }
+
+/* ================================================
+   Marcas 100% originales (carrusel horizontal)
+   ================================================ */
+
+.brands-section {
+  padding: 64px 0 72px;
+}
+
+.brands-carousel {
+  position: relative;
+}
+
+.brands-track {
+  display: flex;
+  gap: 28px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 6px 4px 10px;
+  scrollbar-width: none;
+}
+.brands-track::-webkit-scrollbar {
+  display: none;
+}
+
+.brand-item {
+  flex: 0 0 auto;
+  width: 108px;
+  text-align: center;
+}
+
+.brand-avatar {
+  display: grid;
+  place-items: center;
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 10px;
+  overflow: hidden;
+  border: 1px solid var(--blush);
+  border-radius: 50%;
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.brand-avatar img {
+  width: 68%;
+  height: 68%;
+  object-fit: contain;
+}
+
+.brand-name {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.brands-arrow {
+  position: absolute;
+  top: 40px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--blush);
+  border-radius: 50%;
+  background: var(--white);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.brands-arrow:hover {
+  background: var(--blush-soft);
+}
+.brands-arrow.prev {
+  left: -6px;
+}
+.brands-arrow.next {
+  right: -6px;
+}
+
+@media (max-width: 720px) {
+  .brands-arrow {
+    display: none;
+  }
+  .brands-track {
+    padding: 6px 4px 10px;
+  }
+}
