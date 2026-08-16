@@ -1332,9 +1332,22 @@ body.sg-modal-locked {
 }
 
 .brand-item {
+  display: block;
   flex: 0 0 auto;
   width: 108px;
   text-align: center;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+}
+.brand-item:hover {
+  transform: translateY(-3px);
+}
+.brand-item:hover .brand-avatar {
+  border-color: var(--mauve-dark);
+}
+.brand-item:hover .brand-name {
+  color: var(--mauve-dark);
 }
 
 .brand-avatar {
