@@ -23,9 +23,9 @@ function findProduct(id) {
   return null;
 }
 
-function addToCart(id, size = null) {
+function addToCart(id, size = null, variant = null) {
   const cart = getCart();
-  const lineId = size ? `${id}__${size}` : id;
+  const lineId = [id, size, variant].filter(Boolean).join("__");
   const line = cart.find((item) => item.lineId === lineId);
 
   if (line) {
@@ -34,6 +34,7 @@ function addToCart(id, size = null) {
     cart.push({
       id,
       size,
+      variant,
       lineId,
       quantity: 1,
     });
@@ -362,6 +363,7 @@ function renderCart() {
           <div class="line-info">
             <h5>
               ${product.name}
+              ${line.variant ? `<small> · ${line.variant}</small>` : ""}
               ${line.size ? `<small> · ${line.size}</small>` : ""}
             </h5>
 
@@ -436,9 +438,10 @@ function sendCartToWhatsApp() {
 
   cart.forEach((line) => {
     const product = findProduct(line.id);
-    const size = line.size ? ` (${line.size})` : "";
+    const details = [line.variant, line.size].filter(Boolean).join(", ");
+    const detailsText = details ? ` (${details})` : "";
 
-    message += `• ${product.name}${size} x${line.quantity} — ${formatCOP(
+    message += `• ${product.name}${detailsText} x${line.quantity} — ${formatCOP(
       product.price * line.quantity,
     )}\n`;
   });
