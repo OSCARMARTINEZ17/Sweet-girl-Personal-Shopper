@@ -311,7 +311,12 @@ function getSelectedVariant(id, scope) {
   if (!group) return null;
 
   const selected = group.querySelector(".variant-swatch.selected");
-  return selected ? selected.dataset.variantName : null;
+  if (!selected) return null;
+
+  return {
+    name: selected.dataset.variantName,
+    img: selected.dataset.variantImg || "",
+  };
 }
 
 function renderProductCount(count) {
@@ -494,7 +499,7 @@ function addProductFromCard(id) {
 
   const variant = getSelectedVariant(id, "card");
 
-  addToCart(id, size || null, variant || null);
+  addToCart(id, size || null, variant ? variant.name : null, variant ? variant.img : null);
 }
 
 async function refreshProductsNow() {
@@ -760,7 +765,7 @@ function addProductFromModal(id) {
 
   const variant = getSelectedVariant(id, "modal");
 
-  addToCart(id, size || null, variant || null);
+  addToCart(id, size || null, variant ? variant.name : null, variant ? variant.img : null);
   closeProductModal();
 }
 

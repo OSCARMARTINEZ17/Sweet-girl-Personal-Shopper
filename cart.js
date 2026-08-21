@@ -23,7 +23,7 @@ function findProduct(id) {
   return null;
 }
 
-function addToCart(id, size = null, variant = null) {
+function addToCart(id, size = null, variant = null, variantImg = null) {
   const cart = getCart();
   const lineId = [id, size, variant].filter(Boolean).join("__");
   const line = cart.find((item) => item.lineId === lineId);
@@ -35,6 +35,7 @@ function addToCart(id, size = null, variant = null) {
       id,
       size,
       variant,
+      variantImg: variantImg || "",
       lineId,
       quantity: 1,
     });
@@ -347,8 +348,9 @@ function renderCart() {
     .map((line) => {
       const product = findProduct(line.id);
 
-      const image = product.img
-        ? `<img src="${product.img}" alt="${product.name}">`
+      const lineImgSrc = line.variantImg || product.img;
+      const image = lineImgSrc
+        ? `<img src="${lineImgSrc}" alt="${product.name}">`
         : `<span>${product.name.charAt(0)}</span>`;
 
       const unitPriceRow =
